@@ -34,6 +34,10 @@ PIPELINE_STEPS = {
 # ===== НАСТРОЙКИ СОХРАНЕНИЯ ФАЙЛОВ =====
 SAVE_TIMESTAMPED_FILES = False  # True - сохранять файлы с временными метками, False - только основные файлы
 
+# ===== НАСТРОЙКИ МНОГОПОТОЧНОСТИ =====
+SUMMARIZATION_THREADS = 10  # Количество потоков для суммаризации (рекомендуется 3-5)
+SUMMARIZATION_RETRIES = 3  # Количество повторных попыток при ошибке
+
 
 def extract_project_from_jql(jql_query):
     """
@@ -142,7 +146,9 @@ def main():
         summarized_df, summarized_file = summarize_tasks(
             tasks_df=tasks_df,
             project_folder=DATA_FOLDER_PROJECT,
-            save_timestamped=SAVE_TIMESTAMPED_FILES
+            save_timestamped=SAVE_TIMESTAMPED_FILES,
+            max_workers=SUMMARIZATION_THREADS,
+            max_retries=SUMMARIZATION_RETRIES
         )
         # Используем суммаризированные данные для дальнейшей обработки
         working_df = summarized_df
