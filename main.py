@@ -10,16 +10,32 @@ from pipeline.task_classifier import classify_all_tasks, load_tasks_and_categori
 
 # ===== КОНФИГУРАЦИЯ СКРИПТА =====
 JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
-CATEGORY_FINAL_COUNT = 10
-BATCH_SIZE = 50
+CATEGORY_FINAL_COUNT = 15
 DATA_FOLDER = "classification_data"
 
 # Настройки загрузки из JIRA
-JIRA_CHUNK_SIZE = 50      # Размер порции для загрузки из JIRA
+JIRA_CHUNK_SIZE = 50      # Размер порции для загрузки из JIRA (рекомендуется 25-100)
 MAX_TASKS_LIMIT = 100     # Лимит задач для тестирования (None = все)
 
-# Настройки классификации
-CLASSIFICATION_BATCH_SIZE = 15  # Размер батча для классификации LLM (меньше = точнее)
+
+# ===== НАСТРОЙКИ СОХРАНЕНИЯ ФАЙЛОВ =====
+SAVE_TIMESTAMPED_FILES = False  # True - сохранять файлы с временными метками, False - только основные файлы
+
+# ===== НАСТРОЙКИ МНОГОПОТОЧНОСТИ СУММАРИЗАЦИИ=====
+SUMMARIZATION_THREADS = 10  # Количество потоков для суммаризации (рекомендуется 3-5)
+SUMMARIZATION_RETRIES = 3  # Количество повторных попыток при ошибке
+
+# Настройки для генерации категорий
+CATEGORY_GENERATION_THREADS = 10  # Количество потоков для генерации категорий (рекомендуется 2-3)
+CATEGORY_GENERATION_BATCH_SIZE = 5  # Размер батча задач для обработки (рекомендуется 3-10)
+CATEGORY_GENERATION_RETRIES = 3  # Количество повторных попыток при ошибке
+
+# Настройки для классификации задач
+CLASSIFICATION_THREADS = 10  # Количество потоков для классификации (рекомендуется 3-7)
+CLASSIFICATION_MODE = "single"  # "single" - по одной задаче (точнее), "batch" - батчами (быстрее)
+CLASSIFICATION_BATCH_SIZE = 15  # В режиме batch - Размер батча для классификации LLM (меньше = точнее)
+CLASSIFICATION_RETRIES = 3  # Количество повторных попыток при ошибке
+
 
 # ===== КОНФИГУРАЦИЯ ЭТАПОВ PIPELINE =====
 # Настройте какие этапы выполнять (True/False)
@@ -31,12 +47,6 @@ PIPELINE_STEPS = {
     'classify_tasks': True      # Классификация задач
 }
 
-# ===== НАСТРОЙКИ СОХРАНЕНИЯ ФАЙЛОВ =====
-SAVE_TIMESTAMPED_FILES = False  # True - сохранять файлы с временными метками, False - только основные файлы
-
-# ===== НАСТРОЙКИ МНОГОПОТОЧНОСТИ =====
-SUMMARIZATION_THREADS = 10  # Количество потоков для суммаризации (рекомендуется 3-5)
-SUMMARIZATION_RETRIES = 3  # Количество повторных попыток при ошибке
 
 
 def extract_project_from_jql(jql_query):
@@ -132,7 +142,8 @@ def main():
             jql_query=JQL,
             data_folder=DATA_FOLDER_PROJECT,
             chunk_size=JIRA_CHUNK_SIZE,
-            max_results=MAX_TASKS_LIMIT
+            max_results=MAX_TASKS_LIMIT,
+            save_timestamped=SAVE_TIMESTAMPED_FILES
         )
     else:
         print("\n⏭️ ЭТАП 1: Получение задач из JIRA - ПРОПУЩЕН")
@@ -162,9 +173,11 @@ def main():
         print("\n🤖 ЭТАП 3: Генерация категорий")
         categories_df, categories_file = generate_categories_from_tasks(
             tasks_df=working_df,
-            batch_size=BATCH_SIZE,
+            batch_size=CATEGORY_GENERATION_BATCH_SIZE,
             data_folder=DATA_FOLDER_PROJECT,
-            save_timestamped=SAVE_TIMESTAMPED_FILES
+            save_timestamped=SAVE_TIMESTAMPED_FILES,
+            max_workers=CATEGORY_GENERATION_THREADS,
+            max_retries=CATEGORY_GENERATION_RETRIES
         )
     else:
         print("\n⏭️ ЭТАП 3: Генерация категорий - ПРОПУЩЕН")
@@ -189,7 +202,10 @@ def main():
             categories_df=final_categories_df,
             batch_size=CLASSIFICATION_BATCH_SIZE,
             data_folder=DATA_FOLDER_PROJECT,
-            save_timestamped=SAVE_TIMESTAMPED_FILES
+            save_timestamped=SAVE_TIMESTAMPED_FILES,
+            max_workers=CLASSIFICATION_THREADS,
+            classification_mode=CLASSIFICATION_MODE,
+            max_retries=CLASSIFICATION_RETRIES
         )
     else:
         print("\n⏭️ ЭТАП 5: Присвоение категорий задачам - ПРОПУЩЕН")

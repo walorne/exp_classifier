@@ -120,9 +120,7 @@ def process_tasks_individually(tasks_df, project_folder, save_timestamped=True, 
         pd.DataFrame: DataFrame с суммаризированными задачами
         str: путь к файлу с результатами
     """
-    print(f"\n🤖 Суммаризация {len(tasks_df)} задач с многопоточностью...")
-    print(f"📂 Папка проекта: {project_folder}")
-    print(f"🧵 Потоков: {max_workers}, повторов при ошибке: {max_retries}")
+    print(f"\n🤖 Суммаризация {len(tasks_df)} задач (потоков: {max_workers})")
     
     # Создаем папку для проекта
     os.makedirs(project_folder, exist_ok=True)
@@ -149,44 +147,37 @@ def process_tasks_individually(tasks_df, project_folder, save_timestamped=True, 
         
         # Обрабатываем результаты по мере готовности
         with tqdm(total=len(tasks_df), 
-                  desc="🤖 Суммаризация задач", 
+                  desc="🤖 Обработка задач", 
                   unit="задача",
-                  bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]') as pbar:
+                  ncols=100,
+                  leave=False,
+                  dynamic_ncols=False,
+                  miniters=1,
+                  mininterval=0.1,  # Минимальный интервал между обновлениями
+                  maxinterval=1.0,  # Максимальный интервал между обновлениями
+                  smoothing=0.1,    # Сглаживание скорости
+                  bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
             
             for future in as_completed(future_to_task):
                 index, summary, success, error_msg = future.result()
-                task_key = tasks_df.loc[index, 'key'] if 'key' in tasks_df.columns else f'Task_{index}'
                 
                 # Сохраняем результат
                 result_df.loc[index, 'summary'] = summary
                 
                 if success:
                     success_count += 1
-                    status = '✅'
                 else:
                     error_count += 1
-                    status = '❌'
                     if "Попытка" in str(error_msg):
                         retry_count += 1
                 
-                # Обновляем прогресс-бар
-                pbar.set_description(f"🤖 {task_key}")
-                pbar.set_postfix({
-                    'Успешно': success_count,
-                    'Ошибок': error_count,
-                    'Повторов': retry_count,
-                    'Статус': status
-                })
+                # Обновляем прогресс-бар только с базовой информацией
                 pbar.update(1)
     
-    # Итоговая статистика
-    print(f"\n📊 Статистика суммаризации:")
-    print(f"   ✅ Успешно обработано: {success_count}")
-    print(f"   ❌ Ошибок: {error_count}")
-    print(f"   📈 Процент успеха: {(success_count/len(tasks_df)*100):.1f}%")
+    # Краткая статистика (после закрытия прогресс-бара)
+    print(f"\n✅ Обработано {success_count}/{len(tasks_df)} задач")
     
     # Сохраняем результаты
-    print(f"\n📋 Суммаризация завершена! Сохраняю результаты...")
     
     success1 = True
     summary_file = None

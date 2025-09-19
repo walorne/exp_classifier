@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import re
 from datetime import datetime
+from tqdm import tqdm
 from clients.jira_client import get_jira_client
 from utils.file_utils import safe_save_excel
 
@@ -85,7 +86,7 @@ def collect_and_clean_comments(issue):
         return ''
 
 
-def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_size=100, max_results=None):
+def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_size=100, max_results=None, save_timestamped=True):
     """
     Получает задачи из JIRA по JQL запросу частями и сохраняет в Excel
     
@@ -97,8 +98,9 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
     Args:
         jql_query (str): JQL запрос для получения задач
         data_folder (str): папка для сохранения файлов
-        chunk_size (int): размер порции для загрузки (по умолчанию 100)
+        chunk_size (int): размер порции для загрузки (рекомендуется 25-100)
         max_results (int): максимальное количество задач (None = все)
+        save_timestamped (bool): сохранять ли файлы с временными метками
     
     Returns:
         pd.DataFrame: DataFrame с задачами
@@ -111,6 +113,7 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
     
     # Сначала узнаем общее количество задач (быстрый запрос без полей)
     try:
+        print("🔍 Выполняю предварительный подсчет задач...")
         total_count = jira.search_issues(jql_query, maxResults=0, fields='key').total
         print(f"📊 Всего найдено задач: {total_count}")
         
@@ -124,19 +127,50 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
             print("🔐 Проблема с аутентификацией JIRA:")
             print("   - Проверьте JIRA_TOKEN в файле .env")
             print("   - Убедитесь что токен действителен")
-            print("   - Проверьте права доступа к проекту")
+            print("   - Проверьте права доступа к проекту и эпику")
+        elif "issueFunction" in str(e).lower():
+            print("🔌 Проблема с функцией issuesInEpics:")
+            print("   - Убедитесь что ScriptRunner или аналогичный плагин установлен")
+            print("   - Проверьте синтаксис JQL запроса")
+        elif "timeout" in str(e).lower():
+            print("⏰ Таймаут запроса:")
+            print("   - JQL запрос слишком сложный, увеличен таймаут до 60 сек")
         print("Продолжаем загрузку порциями...")
         total_count = None
     
-    # Загружаем задачи порциями
+    # Подготавливаем прогресс-бар
+    if total_count:
+        total_to_fetch = min(total_count, max_results) if max_results else total_count
+        print(f"📥 Загружаю {total_to_fetch} задач порциями по {chunk_size}")
+    else:
+        total_to_fetch = max_results if max_results else None
+        if total_to_fetch:
+            print(f"📥 Загружаю до {total_to_fetch} задач порциями по {chunk_size}")
+        else:
+            print(f"📥 Загружаю задачи порциями по {chunk_size}")
+    
+    # Загружаем задачи порциями с прогресс-баром
     all_data = []
     start_at = 0
-    chunk_num = 1
     
-    while True:
-        try:
-            print(f"🔄 Загружаю порцию {chunk_num} (задачи {start_at + 1}-{start_at + chunk_size})...")
-            
+    # Создаем прогресс-бар с правильными настройками
+    if total_to_fetch:
+        pbar = tqdm(total=total_to_fetch, 
+                   desc="📥 Загрузка задач", 
+                   unit="задача",
+                   ncols=100,
+                   leave=False,
+                   dynamic_ncols=False,
+                   miniters=1,
+                   mininterval=0.1,  # Минимальный интервал между обновлениями
+                   maxinterval=1.0,  # Максимальный интервал между обновлениями
+                   smoothing=0.1,    # Сглаживание скорости
+                   bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+    else:
+        pbar = None
+    
+    try:
+        while True:
             # Ограничиваем размер порции если приближаемся к лимиту
             current_chunk_size = chunk_size
             if max_results and start_at + chunk_size > max_results:
@@ -145,89 +179,104 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
             if current_chunk_size <= 0:
                 break
                 
-            # Загружаем порцию только с нужными полями (для скорости)
-            issues = jira.search_issues(
-                jql_query, 
-                startAt=start_at, 
-                maxResults=current_chunk_size,
-                fields='key,summary,description,issuetype,timespent,comment'  # 🔥 ТОЛЬКО НУЖНЫЕ ПОЛЯ + КОММЕНТАРИИ
-            )
+            try:
+                # Загружаем порцию только с нужными полями (для скорости)
+                issues = jira.search_issues(
+                    jql_query, 
+                    startAt=start_at, 
+                    maxResults=current_chunk_size,
+                    fields='key,summary,description,issuetype,timespent,comment'  # 🔥 ТОЛЬКО НУЖНЫЕ ПОЛЯ + КОММЕНТАРИИ
+                )
+                
+                if not issues:
+                    break
+                    
+                # Считаем статистику по комментариям для текущей порции
+                tasks_with_comments = 0
+                total_comments = 0
             
-            if not issues:
-                print("✅ Больше задач не найдено")
+                # Обрабатываем задачи из текущей порции
+                for issue in issues:
+                    comments_text = collect_and_clean_comments(issue)
+                    
+                    # Статистика по комментариям
+                    if comments_text:
+                        tasks_with_comments += 1
+                        # Считаем количество комментариев по разделителю
+                        total_comments += len(comments_text.split(' | '))
+                    
+                    all_data.append({
+                        'key': issue.key,
+                        'title': issue.fields.summary,
+                        'description': clean_description(issue.fields.description),
+                        'comments': comments_text,  # 🆕 Добавляем комментарии
+                        'issuetype': issue.fields.issuetype.name,
+                        'time_spent': getattr(issue.fields, 'timespent', 0) or 0,
+                        'processing_stage': 'new',  # Этап обработки
+                        'category_id': '',          # ID категории (пока пустой)
+                        'batch_processed': 0        # Номер батча обработки
+                    })
+                
+                # Обновляем прогресс-бар
+                if pbar:
+                    pbar.update(len(issues))
+                
+                # Переходим к следующей порции
+                start_at += len(issues)
+                
+                # Если получили меньше задач чем запрашивали - это последняя порция
+                if len(issues) < current_chunk_size:
+                    break
+                    
+                # Если достигли лимита
+                if max_results and start_at >= max_results:
+                    break
+                    
+            except Exception as e:
+                if pbar:
+                    pbar.close()
+                print(f"❌ Ошибка при загрузке: {e}")
+                if "401" in str(e):
+                    print("💡 Проблема с аутентификацией - проверьте токен!")
+                    raise
                 break
-                
-            print(f"   📥 Получено {len(issues)} задач")
-            
-            # Считаем статистику по комментариям для текущей порции
-            tasks_with_comments = 0
-            total_comments = 0
-            
-            # Обрабатываем задачи из текущей порции
-            for issue in issues:
-                comments_text = collect_and_clean_comments(issue)
-                
-                # Статистика по комментариям
-                if comments_text:
-                    tasks_with_comments += 1
-                    # Считаем количество комментариев по разделителю
-                    total_comments += len(comments_text.split(' | '))
-                
-                all_data.append({
-                    'key': issue.key,
-                    'title': issue.fields.summary,
-                    'description': clean_description(issue.fields.description),
-                    'comments': comments_text,  # 🆕 Добавляем комментарии
-                    'issuetype': issue.fields.issuetype.name,
-                    'time_spent': getattr(issue.fields, 'timespent', 0) or 0,
-                    'processing_stage': 'new',  # Этап обработки
-                    'category_id': '',          # ID категории (пока пустой)
-                    'batch_processed': 0        # Номер батча обработки
-                })
-            
-            # Выводим статистику по комментариям
-            if tasks_with_comments > 0:
-                print(f"   💬 Задач с комментариями: {tasks_with_comments}, всего комментариев: {total_comments}")
-            
-            # Переходим к следующей порции
-            start_at += len(issues)
-            chunk_num += 1
-            
-            # Если получили меньше задач чем запрашивали - это последняя порция
-            if len(issues) < current_chunk_size:
-                print("✅ Достигнут конец результатов")
-                break
-                
-            # Если достигли лимита
-            if max_results and start_at >= max_results:
-                print(f"✅ Достигнут лимит: {max_results} задач")
-                break
-                
-        except Exception as e:
-            print(f"❌ Ошибка при загрузке порции {chunk_num}: {e}")
-            if "401" in str(e):
-                print("💡 Проблема с аутентификацией - проверьте токен!")
-                raise
-            break
+    
+    finally:
+        # Принудительно обновляем и закрываем прогресс-бар
+        if pbar:
+            pbar.refresh()  # Принудительное обновление
+            pbar.close()
 
     if not all_data:
         print("❌ Не удалось загрузить ни одной задачи!")
         raise Exception("Нет данных для обработки")
 
     df = pd.DataFrame(all_data)
-    print(f"📊 Итого загружено: {len(df)} задач")
+    
+    # Краткая статистика по комментариям
+    tasks_with_comments = df['comments'].apply(lambda x: len(x.strip()) > 0).sum()
+    if tasks_with_comments > 0:
+        print(f"\n✅ Загружено {len(df)} задач, с комментариями: {tasks_with_comments}")
+    else:
+        print(f"\n✅ Загружено {len(df)} задач")
     
     # Сохраняем задачи в Excel с безопасной обработкой
+    success1 = True
+    tasks_file = None
+    
+    if save_timestamped:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        tasks_file = os.path.join(data_folder, f"tasks_{timestamp}.xlsx")
+        success1 = safe_save_excel(df, tasks_file, 'Tasks', show_success_message=False)
+    
+    # Основной файл задач
     main_tasks_file = os.path.join(data_folder, "tasks.xlsx")
+    success2 = safe_save_excel(df, main_tasks_file, 'Tasks', show_success_message=False)
     
-    print(f"\n💾 Сохраняю задачи в файл...")
-    success = safe_save_excel(df, main_tasks_file, 'Tasks')
-    
-    if success:
-        print(f"✅ Задачи успешно сохранены: {main_tasks_file}")
+    if save_timestamped and success1 and success2:
+        return df, tasks_file
+    elif success2:
+        return df, main_tasks_file
     else:
-        print(f"❌ Не удалось сохранить задачи в файл: {main_tasks_file}")
-        # Возвращаем None как признак ошибки сохранения
+        print(f"❌ Не удалось сохранить задачи")
         return df, None
-    
-    return df, main_tasks_file
