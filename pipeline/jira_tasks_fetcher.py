@@ -6,34 +6,83 @@ import os
 import re
 from datetime import datetime
 from clients.jira_client import get_jira_client
+from utils.file_utils import safe_save_excel
+
+
+def clean_text(text):
+    """Очистка текста от лишних символов и форматирования"""
+    if not text:
+        return ''
+    
+    # Удаляем переносы строк и лишние пробелы
+    text = text.replace('\n', ' ').replace('\r', ' ')
+    text = ' '.join(text.split())  # Убираем множественные пробелы
+    
+    # Удаляем JIRA разметку (более точно)
+    text = re.sub(r'\{code[^}]*\}.*?\{code\}', '', text, flags=re.DOTALL)  # {code}...{code}
+    text = re.sub(r'\{quote[^}]*\}.*?\{quote\}', '', text, flags=re.DOTALL)  # {quote}...{quote}
+    text = re.sub(r'\{noformat[^}]*\}.*?\{noformat\}', '', text, flags=re.DOTALL)  # {noformat}
+    text = re.sub(r'\[~[^\]]+\]', '', text)  # [~username] - упоминания пользователей
+    text = re.sub(r'\[[^\]]*\|[^\]]*\]', '', text)  # [text|link] - ссылки с текстом
+    text = re.sub(r'h[1-6]\.\s+', '', text)  # h1. h2. заголовки
+    
+    # Убираем JIRA форматирование, но сохраняем содержимое
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)  # *жирный* → жирный
+    text = re.sub(r'_([^_]+)_', r'\1', text)  # _курсив_ → курсив
+    
+    # Убираем URL
+    text = re.sub(r'https?://[^\s]+', '', text)
+    
+    # Убираем только действительно лишние символы, сохраняя важную пунктуацию
+    # Оставляем: буквы, цифры, пробелы, основную пунктуацию, скобки, кавычки
+    text = re.sub(r'[^\w\s\-.,!?():;"\'@#№%/\\]', ' ', text, flags=re.UNICODE)
+    
+    # Финальная очистка пробелов
+    text = ' '.join(text.split())
+    
+    return text
 
 
 def clean_description(desc):
     """Очистка описания от лишних символов и форматирования"""
-    if not desc:
+    return clean_text(desc)
+
+
+def collect_and_clean_comments(issue):
+    """
+    Собирает все комментарии к задаче и объединяет их в один очищенный текст
+    
+    Args:
+        issue: объект задачи JIRA
+    
+    Returns:
+        str: объединенный и очищенный текст всех комментариев
+    """
+    if not hasattr(issue.fields, 'comment') or not issue.fields.comment:
         return ''
     
-    # Удаляем переносы строк и лишние пробелы
-    desc = desc.replace('\n', ' ').replace('\r', ' ')
-    desc = ' '.join(desc.split())  # Убираем множественные пробелы
+    comments_text = []
     
-    # Удаляем JIRA разметку
-    desc = re.sub(r'\{[^}]*\}', '', desc)  # {code}, {quote}, etc.
-    desc = re.sub(r'\[[^\]]*\]', '', desc)  # [~username], [link]
-    desc = re.sub(r'h[1-6]\.\s*', '', desc)  # h1. h2. заголовки
-    desc = re.sub(r'\*[^*]*\*', '', desc)  # *жирный текст*
-    desc = re.sub(r'_[^_]*_', '', desc)  # _курсив_
-    
-    # Убираем URL
-    desc = re.sub(r'https?://\S+', '', desc)
-    
-    # Убираем лишние символы
-    desc = re.sub(r'[^\w\s\-.,!?()]', ' ', desc, flags=re.UNICODE)
-    
-    # Финальная очистка пробелов
-    desc = ' '.join(desc.split())
-    
-    return desc
+    try:
+        # Получаем все комментарии
+        comments = issue.fields.comment.comments
+        
+        for comment in comments:
+            if hasattr(comment, 'body') and comment.body:
+                # Очищаем текст комментария
+                clean_comment = clean_text(comment.body)
+                if clean_comment.strip():  # Добавляем только непустые комментарии
+                    comments_text.append(clean_comment)
+        
+        # Объединяем все комментарии через разделитель
+        if comments_text:
+            return ' | '.join(comments_text)
+        else:
+            return ''
+            
+    except Exception as e:
+        print(f"⚠️ Ошибка при обработке комментариев для {issue.key}: {e}")
+        return ''
 
 
 def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_size=100, max_results=None):
@@ -70,7 +119,12 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
             print(f"🎯 Ограничиваем до: {max_results} задач")
             
     except Exception as e:
-        print(f"⚠️ Не удалось получить общее количество: {e}")
+        print(f"⚠️ Ошибка при подсчете задач: {e}")
+        if "401" in str(e) or "Unauthorized" in str(e):
+            print("🔐 Проблема с аутентификацией JIRA:")
+            print("   - Проверьте JIRA_TOKEN в файле .env")
+            print("   - Убедитесь что токен действителен")
+            print("   - Проверьте права доступа к проекту")
         print("Продолжаем загрузку порциями...")
         total_count = None
     
@@ -96,7 +150,7 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
                 jql_query, 
                 startAt=start_at, 
                 maxResults=current_chunk_size,
-                fields='key,summary,description,issuetype,timespent'  # 🔥 ТОЛЬКО НУЖНЫЕ ПОЛЯ
+                fields='key,summary,description,issuetype,timespent,comment'  # 🔥 ТОЛЬКО НУЖНЫЕ ПОЛЯ + КОММЕНТАРИИ
             )
             
             if not issues:
@@ -105,18 +159,35 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
                 
             print(f"   📥 Получено {len(issues)} задач")
             
+            # Считаем статистику по комментариям для текущей порции
+            tasks_with_comments = 0
+            total_comments = 0
+            
             # Обрабатываем задачи из текущей порции
             for issue in issues:
+                comments_text = collect_and_clean_comments(issue)
+                
+                # Статистика по комментариям
+                if comments_text:
+                    tasks_with_comments += 1
+                    # Считаем количество комментариев по разделителю
+                    total_comments += len(comments_text.split(' | '))
+                
                 all_data.append({
                     'key': issue.key,
                     'title': issue.fields.summary,
                     'description': clean_description(issue.fields.description),
+                    'comments': comments_text,  # 🆕 Добавляем комментарии
                     'issuetype': issue.fields.issuetype.name,
                     'time_spent': getattr(issue.fields, 'timespent', 0) or 0,
                     'processing_stage': 'new',  # Этап обработки
                     'category_id': '',          # ID категории (пока пустой)
                     'batch_processed': 0        # Номер батча обработки
                 })
+            
+            # Выводим статистику по комментариям
+            if tasks_with_comments > 0:
+                print(f"   💬 Задач с комментариями: {tasks_with_comments}, всего комментариев: {total_comments}")
             
             # Переходим к следующей порции
             start_at += len(issues)
@@ -146,12 +217,17 @@ def fetch_and_save_tasks(jql_query, data_folder="classification_data", chunk_siz
     df = pd.DataFrame(all_data)
     print(f"📊 Итого загружено: {len(df)} задач")
     
-    # Создаем папку для данных
-    os.makedirs(data_folder, exist_ok=True)
-
-    # Сохраняем задачи в Excel
+    # Сохраняем задачи в Excel с безопасной обработкой
     main_tasks_file = os.path.join(data_folder, "tasks.xlsx")
-    df.to_excel(main_tasks_file, index=False, sheet_name='Tasks')
-    print(f"✅ Основной файл задач: {main_tasks_file}")
+    
+    print(f"\n💾 Сохраняю задачи в файл...")
+    success = safe_save_excel(df, main_tasks_file, 'Tasks')
+    
+    if success:
+        print(f"✅ Задачи успешно сохранены: {main_tasks_file}")
+    else:
+        print(f"❌ Не удалось сохранить задачи в файл: {main_tasks_file}")
+        # Возвращаем None как признак ошибки сохранения
+        return df, None
     
     return df, main_tasks_file

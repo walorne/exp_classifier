@@ -6,6 +6,7 @@ import os
 import re
 from datetime import datetime
 from clients.ai_client import create_default_client
+from utils.file_utils import safe_save_excel
 
 
 def load_tasks_and_categories(data_folder="classification_data"):
@@ -41,8 +42,9 @@ def classify_tasks_with_llm(tasks_batch, categories_df, batch_num, total_batches
     tasks_text = ""
     for idx, (_, row) in enumerate(tasks_batch.iterrows()):
         tasks_text += f"{idx+1}. [{row['key']}] {row['title']}\n"
+        if row.get('summary'):
+            tasks_text += f"   Саммаризация: {row['summary']}\n"
         if row['description']:
-            # Обрезаем описание для экономии токенов
             desc = row['description']
             tasks_text += f"   Описание: {desc}\n"
         tasks_text += f"   Тип: {row['issuetype']}\n\n"
@@ -59,6 +61,8 @@ def classify_tasks_with_llm(tasks_batch, categories_df, batch_num, total_batches
 1. Для каждой задачи выбери ОДНУ наиболее подходящую категорию
 2. Используй номер категории (1, 2, 3, ...)
 3. Если задача не подходит ни к одной категории, выбери наиболее близкую
+4. ПРИОРИТЕТ анализа: используй в первую очередь поле "Саммаризация" - это подготовленные для классификации данные
+5. Дополнительно анализируй название, описание и тип задачи для более точного определения
 
 ВЕРНИ РЕЗУЛЬТАТ В ФОРМАТЕ:
 1;3
@@ -118,7 +122,7 @@ def parse_classification_response(response_text, tasks_batch, categories_df):
     return results
 
 
-def classify_all_tasks(tasks_df, categories_df, batch_size=20, data_folder="classification_data"):
+def classify_all_tasks(tasks_df, categories_df, batch_size=20, data_folder="classification_data", save_timestamped=True):
     """
     Классифицирует все задачи по финальным категориям
     
@@ -193,22 +197,41 @@ def classify_all_tasks(tasks_df, categories_df, batch_size=20, data_folder="clas
         for category, count in category_counts.items():
             print(f"   {category}: {count} задач")
     
-    # Сохраняем результаты
-    os.makedirs(data_folder, exist_ok=True)
+    # Сохраняем результаты с безопасной обработкой
+    print(f"\n💾 Сохраняю результаты классификации в файл...")
     
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    results_file = os.path.join(data_folder, f"classified_tasks_{timestamp}.xlsx")
-    classified_df.to_excel(results_file, index=False, sheet_name='Classified_Tasks')
+    success1 = True
+    results_file = None
+    
+    if save_timestamped:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        results_file = os.path.join(data_folder, f"classified_tasks_{timestamp}.xlsx")
+        success1 = safe_save_excel(classified_df, results_file, 'Classified_Tasks')
     
     # Основной файл результатов
     main_results_file = os.path.join(data_folder, "classified_tasks.xlsx")
-    classified_df.to_excel(main_results_file, index=False, sheet_name='Classified_Tasks')
+    success2 = safe_save_excel(classified_df, main_results_file, 'Classified_Tasks')
     
-    print(f"\n✅ Результаты сохранены:")
-    print(f"   📄 {results_file}")
-    print(f"   📄 {main_results_file}")
+    if save_timestamped:
+        if success1 and success2:
+            print(f"\n✅ Все файлы результатов успешно сохранены:")
+            print(f"   📄 {results_file}")
+            print(f"   📄 {main_results_file}")
+        elif success1 or success2:
+            print(f"\n⚠️ Частично сохранено:")
+            if success1:
+                print(f"   ✅ {results_file}")
+            if success2:
+                print(f"   ✅ {main_results_file}")
+        else:
+            print(f"\n❌ Не удалось сохранить файлы результатов!")
+    else:
+        if success2:
+            print(f"\n✅ Файл успешно сохранен: {main_results_file}")
+        else:
+            print(f"\n❌ Не удалось сохранить файл: {main_results_file}")
     
-    return classified_df, main_results_file
+    return classified_df, results_file if (save_timestamped and success1) else main_results_file if success2 else None
 
 
 def main_classification():

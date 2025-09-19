@@ -5,6 +5,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from clients.ai_client import create_default_client
+from utils.file_utils import safe_save_excel
 
 
 def consolidate_categories(categories_df, target_count, llm_client):
@@ -71,7 +72,7 @@ def parse_consolidated_categories(response_text):
     return categories
 
 
-def create_final_categories(categories_df, target_count, data_folder="classification_data"):
+def create_final_categories(categories_df, target_count, data_folder="classification_data", save_timestamped=True):
     """
     Создает финальный список категорий
     
@@ -119,20 +120,17 @@ def create_final_categories(categories_df, target_count, data_folder="classifica
         print(f"✅ Категорий уже {len(categories_df)} - консолидация не требуется")
         final_categories_df = categories_df.copy()
     
-    # Создаем папку для данных
-    os.makedirs(data_folder, exist_ok=True)
-    
-    # Сохраняем консолидированные категории
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    # final_categories_file = os.path.join(data_folder, f"final_categories_{timestamp}.xlsx")
-    # final_categories_df.to_excel(final_categories_file, index=False, sheet_name='Final_Categories')
+    # Сохраняем консолидированные категории с безопасной обработкой
+    print(f"\n💾 Сохраняю итоговые категории в файл...")
     
     # Основной файл итоговых категорий
     main_final_file = os.path.join(data_folder, "final_categories.xlsx")
-    final_categories_df.to_excel(main_final_file, index=False, sheet_name='Final_Categories')
+    success = safe_save_excel(final_categories_df, main_final_file, 'Final_Categories')
     
-    print(f"\n✅ Итоговые категории сохранены:")
-    print(f"   📄 {main_final_file}")
-    print(f"   📄 {main_final_file}")
+    if success:
+        print(f"✅ Файл успешно сохранен: {main_final_file}")
+    else:
+        print(f"❌ Не удалось сохранить итоговые категории: {main_final_file}")
+        return final_categories_df, None
     
     return final_categories_df, main_final_file

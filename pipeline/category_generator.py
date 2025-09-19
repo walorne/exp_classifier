@@ -5,6 +5,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from clients.ai_client import create_default_client
+from utils.file_utils import safe_save_excel
 
 
 def process_batch_for_categories(batch_tasks, batch_num, total_batches, llm_client):
@@ -13,7 +14,7 @@ def process_batch_for_categories(batch_tasks, batch_num, total_batches, llm_clie
     # Собираем тексты для классификации
     texts_for_classification = []
     for _, row in batch_tasks.iterrows():
-        text = f"Тип: {row['issuetype']}\nНазвание: {row['title']}\nОписание: {row['description']}"
+        text = f"Тип: {row['issuetype']}\nНазвание: {row['title']}\nОписание: {row['description']}\nСаммаризация: {row['summary']}"
         texts_for_classification.append(text)
 
     # Создаем промпт
@@ -24,6 +25,8 @@ def process_batch_for_categories(batch_tasks, batch_num, total_batches, llm_clie
 2. Каждая категория должна объединять логически связанные задачи
 3. Названия категорий должны быть понятными и отражать суть работы
 4. Избегай слишком узких или слишком широких категорий
+5. Обязательно используй описание из поля "Саммаризация" - это подготовленные для классификации данные
+6. Данные из остальных полей могут использоваться для более точного определения категории
 
 ЗАДАЧИ ДЛЯ АНАЛИЗА (батч {batch_num}/{total_batches}):
 {chr(10).join([f"{i+1}. {text}" for i, text in enumerate(texts_for_classification)])}
@@ -31,15 +34,15 @@ def process_batch_for_categories(batch_tasks, batch_num, total_batches, llm_clie
 ВЕРНИ РЕЗУЛЬТАТ СТРОГО В ФОРМАТЕ CSV (разделитель - точка с запятой):
 Название;Описание;Ключевые_слова;Типы_задач
 
-Пример:
-API интеграции;Настройка и разработка API интеграций;api,интеграция,настройка,разработка;Task,Story
-Работа с ошибками;Исправление ошибок и багов в системе;ошибка,баг,исправление,отладка;Bug,Task
 
 ВАЖНО: 
 - НЕ добавляй заголовки столбцов
 - НЕ добавляй номера строк
 - Каждая категория на новой строке
 - Используй точку с запятой как разделитель"""
+# Пример:
+# API интеграции;Настройка и разработка API интеграций;api,интеграция,настройка,разработка;Task,Story
+# Работа с ошибками;Исправление ошибок и багов в системе;ошибка,баг,исправление,отладка;Bug,Task
 
     print(f"🔄 Обрабатываю батч {batch_num}/{total_batches} ({len(batch_tasks)} задач)...")
     response = llm_client.simple_chat(prompt)
@@ -68,7 +71,7 @@ def parse_categories_response(response_text):
     return categories
 
 
-def generate_categories_from_tasks(tasks_df, batch_size=50, data_folder="classification_data"):
+def generate_categories_from_tasks(tasks_df, batch_size=50, data_folder="classification_data", save_timestamped=True):
     """
     Генерирует категории из задач батчами
     
@@ -76,6 +79,7 @@ def generate_categories_from_tasks(tasks_df, batch_size=50, data_folder="classif
         tasks_df (pd.DataFrame): DataFrame с задачами
         batch_size (int): размер батча
         data_folder (str): папка для сохранения файлов
+        save_timestamped (bool): сохранять ли файлы с временными метками
     
     Returns:
         pd.DataFrame: DataFrame с категориями
@@ -117,19 +121,20 @@ def generate_categories_from_tasks(tasks_df, batch_size=50, data_folder="classif
 
     print(f"\n📋 Всего создано категорий: {len(categories_df)}")
     
-    # Создаем папку для данных
-    os.makedirs(data_folder, exist_ok=True)
+    # Сохраняем категории с безопасной обработкой
+    print(f"\n💾 Сохраняю категории в файл...")
     
-    # Сохраняем категории в Excel
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    # categories_file = os.path.join(data_folder, f"categories_{timestamp}.xlsx")
-    # categories_df.to_excel(categories_file, index=False, sheet_name='Categories')
-
-    # print(f"✅ Категории сохранены в файл: {categories_file}")
-
-    # Также сохраняем как основной файл категорий
+    # Сохраняем основной файл категорий
     main_categories_file = os.path.join(data_folder, "categories.xlsx")
-    categories_df.to_excel(main_categories_file, index=False, sheet_name='Categories')
-    print(f"✅ Основной файл категорий: {main_categories_file}")
+    success = safe_save_excel(categories_df, main_categories_file, 'Categories')
+    
+    if success:
+        if save_timestamped:
+            print(f"✅ Категории успешно сохранены: {main_categories_file}")
+        else:
+            print(f"✅ Файл успешно сохранен: {main_categories_file}")
+    else:
+        print(f"❌ Не удалось сохранить категории в файл: {main_categories_file}")
+        return categories_df, None
     
     return categories_df, main_categories_file
