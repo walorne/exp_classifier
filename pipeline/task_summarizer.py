@@ -149,13 +149,15 @@ def process_tasks_individually(tasks_df, project_folder, save_timestamped=True, 
         with tqdm(total=len(tasks_df), 
                   desc="🤖 Обработка задач", 
                   unit="задача",
-                  ncols=100,
-                  leave=False,
+                  ncols=80,
+                  leave=True,
                   dynamic_ncols=False,
-                  miniters=1,
-                  mininterval=0.1,  # Минимальный интервал между обновлениями
-                  maxinterval=1.0,  # Максимальный интервал между обновлениями
-                  smoothing=0.1,    # Сглаживание скорости
+                  miniters=0,
+                  mininterval=0.5,
+                  maxinterval=2.0,
+                  smoothing=0.3,
+                  position=0,
+                  ascii=True,
                   bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
             
             for future in as_completed(future_to_task):
