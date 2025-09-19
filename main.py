@@ -9,13 +9,14 @@ from pipeline.category_consolidator import create_final_categories
 from pipeline.task_classifier import classify_all_tasks, load_tasks_and_categories
 
 # ===== КОНФИГУРАЦИЯ СКРИПТА =====
-JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
+# JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
+JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 ORDER BY created DESC"
 CATEGORY_FINAL_COUNT = 15
 DATA_FOLDER = "classification_data"
 
 # Настройки загрузки из JIRA
 JIRA_CHUNK_SIZE = 50      # Размер порции для загрузки из JIRA (рекомендуется 25-100)
-MAX_TASKS_LIMIT = 100     # Лимит задач для тестирования (None = все)
+MAX_TASKS_LIMIT = None     # Лимит задач для тестирования (None = все)
 
 
 # ===== НАСТРОЙКИ СОХРАНЕНИЯ ФАЙЛОВ =====
