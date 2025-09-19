@@ -2,6 +2,8 @@
 Основной скрипт для классификации JIRA задач
 """
 import re
+import os
+import pandas as pd
 from pipeline.jira_tasks_fetcher import fetch_and_save_tasks
 from pipeline.task_summarizer import summarize_tasks
 from pipeline.category_generator import generate_categories_from_tasks
@@ -9,8 +11,8 @@ from pipeline.category_consolidator import create_final_categories
 from pipeline.task_classifier import classify_all_tasks, load_tasks_and_categories
 
 # ===== КОНФИГУРАЦИЯ СКРИПТА =====
-# JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
-JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 ORDER BY created DESC"
+JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
+#JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 ORDER BY created DESC"
 CATEGORY_FINAL_COUNT = 15
 DATA_FOLDER = "classification_data"
 
@@ -30,6 +32,7 @@ SUMMARIZATION_RETRIES = 3  # Количество повторных попыт�
 CATEGORY_GENERATION_THREADS = 10  # Количество потоков для генерации категорий (рекомендуется 2-3)
 CATEGORY_GENERATION_BATCH_SIZE = 5  # Размер батча задач для обработки (рекомендуется 3-10)
 CATEGORY_GENERATION_RETRIES = 3  # Количество повторных попыток при ошибке
+CATEGORY_GENERATION_PROMPT = None  # Название промпта (None = активный): "basic_v1", "detailed_v1", "technical_focus", "business_focus"
 
 # Настройки для классификации задач
 CLASSIFICATION_THREADS = 10  # Количество потоков для классификации (рекомендуется 3-7)
@@ -41,11 +44,11 @@ CLASSIFICATION_RETRIES = 3  # Количество повторных попыт
 # ===== КОНФИГУРАЦИЯ ЭТАПОВ PIPELINE =====
 # Настройте какие этапы выполнять (True/False)
 PIPELINE_STEPS = {
-    'fetch_tasks': True,        # Получение задач из JIRA
-    'summarize_tasks': True,    # Суммаризация задач (новый этап)
+    'fetch_tasks': False,        # Получение задач из JIRA
+    'summarize_tasks': False,    # Суммаризация задач (новый этап)
     'generate_categories': True, # Генерация категорий
-    'consolidate_categories': True, # Консолидация категорий
-    'classify_tasks': True      # Классификация задач
+    'consolidate_categories': False, # Консолидация категорий
+    'classify_tasks': False      # Классификация задач
 }
 
 
@@ -148,9 +151,21 @@ def main():
         )
     else:
         print("\n⏭️ ЭТАП 1: Получение задач из JIRA - ПРОПУЩЕН")
-        # Здесь можно добавить загрузку существующих задач из файла
-        print("   💡 Для тестирования загрузите существующие задачи из файла")
-        return
+        print("   📂 Попытка загрузить существующие задачи...")
+        
+        # Пытаемся загрузить существующие задачи из файла
+        tasks_file = os.path.join(DATA_FOLDER_PROJECT, "tasks.xlsx")
+        if os.path.exists(tasks_file):
+            try:
+                tasks_df = pd.read_excel(tasks_file)
+                print(f"   ✅ Загружено {len(tasks_df)} задач из файла: {tasks_file}")
+            except Exception as e:
+                print(f"   ❌ Ошибка загрузки файла {tasks_file}: {e}")
+                return
+        else:
+            print(f"   ❌ Файл с задачами не найден: {tasks_file}")
+            print("   💡 Сначала запустите этап fetch_tasks или поместите файл tasks.xlsx в папку проекта")
+            return
     
     # Этап 2: Суммаризация задач (НОВЫЙ)
     if PIPELINE_STEPS['summarize_tasks']:
@@ -166,8 +181,21 @@ def main():
         working_df = summarized_df
     else:
         print("\n⏭️ ЭТАП 2: Суммаризация задач - ПРОПУЩЕН")
-        # Используем исходные данные
-        working_df = tasks_df
+        print("   📂 Попытка загрузить существующие суммаризированные задачи...")
+        
+        # Пытаемся загрузить существующие суммаризированные задачи
+        summary_file = os.path.join(DATA_FOLDER_PROJECT, "tasks_summary.xlsx")
+        if os.path.exists(summary_file):
+            try:
+                working_df = pd.read_excel(summary_file)
+                print(f"   ✅ Загружено {len(working_df)} суммаризированных задач из файла: {summary_file}")
+            except Exception as e:
+                print(f"   ⚠️ Ошибка загрузки суммаризированных задач: {e}")
+                print("   📋 Используем исходные задачи без суммаризации")
+                working_df = tasks_df
+        else:
+            print("   📋 Файл с суммаризированными задачами не найден, используем исходные задачи")
+            working_df = tasks_df
     
     # Этап 3: Генерация категорий
     if PIPELINE_STEPS['generate_categories']:
@@ -178,10 +206,25 @@ def main():
             data_folder=DATA_FOLDER_PROJECT,
             save_timestamped=SAVE_TIMESTAMPED_FILES,
             max_workers=CATEGORY_GENERATION_THREADS,
-            max_retries=CATEGORY_GENERATION_RETRIES
+            max_retries=CATEGORY_GENERATION_RETRIES,
+            prompt_name=CATEGORY_GENERATION_PROMPT
         )
     else:
         print("\n⏭️ ЭТАП 3: Генерация категорий - ПРОПУЩЕН")
+        print("   📂 Попытка загрузить существующие категории...")
+        
+        # Пытаемся загрузить существующие категории
+        categories_file = os.path.join(DATA_FOLDER_PROJECT, "categories.xlsx")
+        if os.path.exists(categories_file):
+            try:
+                categories_df = pd.read_excel(categories_file)
+                print(f"   ✅ Загружено {len(categories_df)} категорий из файла: {categories_file}")
+            except Exception as e:
+                print(f"   ❌ Ошибка загрузки категорий: {e}")
+                categories_df = None
+        else:
+            print("   ⚠️ Файл с категориями не найден")
+            categories_df = None
     
     # Этап 4: Создание финального списка категорий
     if PIPELINE_STEPS['consolidate_categories'] and categories_df is not None:

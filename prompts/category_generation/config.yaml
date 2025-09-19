@@ -1,0 +1,43 @@
+# Конфигурация промптов для генерации категорий
+active_prompt: "detailed_v2"
+
+prompts:
+  basic_v1:
+    name: "Базовый промпт v1"
+    description: "Простой подход к генерации категорий"
+    file: "basic_v1.txt"
+    parameters:
+      max_categories: 15
+      focus_areas: []
+  
+  detailed_v1:
+    name: "Детальный анализ v1"
+    description: "Глубокий анализ с учетом контекста и типов задач"
+    file: "detailed_v1.txt"
+    parameters:
+      max_categories: 12
+      focus_areas: ["technical", "business", "process"]
+
+  detailed_v2:
+    name: "Анализ болевых точек v2"
+    description: "Выявление проблемных областей системы с наибольшими трудозатратами на поддержку"
+    file: "detailed_v2.txt"
+    parameters:
+      max_categories: 5
+      focus_areas: ["architecture", "functional_blocks", "problem_sources"]
+  
+  technical_focus:
+    name: "Технический фокус"
+    description: "Акцент на технические аспекты и разработку"
+    file: "technical_focus.txt"
+    parameters:
+      max_categories: 10
+      focus_areas: ["development", "infrastructure", "testing"]
+      
+  business_focus:
+    name: "Бизнес фокус"
+    description: "Акцент на бизнес-процессы и пользовательский опыт"
+    file: "business_focus.txt"
+    parameters:
+      max_categories: 8
+      focus_areas: ["ux", "business_logic", "analytics"]
