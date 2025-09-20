@@ -11,19 +11,24 @@ from prompts.prompt_manager import create_category_prompt_manager
 def show_help():
     """Показывает справку по использованию"""
     print("""
-🎯 Утилита управления промптами для генерации категорий
+🎯 Утилита управления промптами
 
 КОМАНДЫ:
-  list                     - Показать все доступные промпты
-  active                   - Показать активный промпт
-  set <prompt_name>        - Установить активный промпт
-  show <prompt_name>       - Показать содержимое промпта
-  help                     - Показать эту справку
+  list [type]                     - Показать все доступные промпты (generation|consolidation)
+  active [type]                   - Показать активный промпт (generation|consolidation)
+  set <type> <prompt_name>        - Установить активный промпт
+  show <type> <prompt_name>       - Показать содержимое промпта
+  help                            - Показать эту справку
+
+ТИПЫ ПРОМПТОВ:
+  generation     - Промпты для генерации категорий
+  consolidation  - Промпты для консолидации категорий
 
 ПРИМЕРЫ:
-  python prompt_manager_cli.py list
-  python prompt_manager_cli.py set technical_focus
-  python prompt_manager_cli.py show detailed_v1
+  python prompt_manager_cli.py list generation
+  python prompt_manager_cli.py set generation technical_focus
+  python prompt_manager_cli.py show consolidation basic_v1
+  python prompt_manager_cli.py active consolidation
     """)
 
 

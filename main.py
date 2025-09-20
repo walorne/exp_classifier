@@ -34,6 +34,9 @@ CATEGORY_GENERATION_BATCH_SIZE = 5  # Размер батча задач для 
 CATEGORY_GENERATION_RETRIES = 3  # Количество повторных попыток при ошибке
 CATEGORY_GENERATION_PROMPT = None  # Название промпта (None = активный): "basic_v1", "detailed_v1", "technical_focus", "business_focus"
 
+# Настройки для консолидации категорий
+CATEGORY_CONSOLIDATION_PROMPT = None  # Название промпта (None = активный): "basic_v1", "detailed_v1", "technical_focus", "business_focus"
+
 # Настройки для классификации задач
 CLASSIFICATION_THREADS = 10  # Количество потоков для классификации (рекомендуется 3-7)
 CLASSIFICATION_MODE = "single"  # "single" - по одной задаче (точнее), "batch" - батчами (быстрее)
@@ -47,7 +50,7 @@ PIPELINE_STEPS = {
     'fetch_tasks': False,        # Получение задач из JIRA
     'summarize_tasks': False,    # Суммаризация задач (новый этап)
     'generate_categories': True, # Генерация категорий
-    'consolidate_categories': False, # Консолидация категорий
+    'consolidate_categories': True, # Консолидация категорий
     'classify_tasks': False      # Классификация задач
 }
 
@@ -233,7 +236,8 @@ def main():
             categories_df=categories_df,
             target_count=CATEGORY_FINAL_COUNT,
             data_folder=DATA_FOLDER_PROJECT,
-            save_timestamped=SAVE_TIMESTAMPED_FILES
+            save_timestamped=SAVE_TIMESTAMPED_FILES,
+            prompt_name=CATEGORY_CONSOLIDATION_PROMPT
         )
     else:
         print("\n⏭️ ЭТАП 4: Консолидация категорий - ПРОПУЩЕН")

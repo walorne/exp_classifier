@@ -1,0 +1,47 @@
+# Конфигурация промптов для консолидации категорий
+active_prompt: "detailed_v2_with_systems"
+
+prompts:
+  basic_v1:
+    name: "Базовая консолидация v1"
+    description: "Стандартный подход к объединению категорий по техническим слоям"
+    file: "basic_v1.txt"
+    parameters:
+      target_count: 15
+      preserve_critical: true
+      
+  detailed_v1:
+    name: "Детальная консолидация v1"
+    description: "Более тщательный анализ с учетом бизнес-критичности"
+    file: "detailed_v1.txt"
+    parameters:
+      target_count: 10
+      preserve_critical: true
+      focus_on_business: true
+      
+  technical_focus:
+    name: "Технический фокус"
+    description: "Приоритет технических аспектов при консолидации"
+    file: "technical_focus.txt"
+    parameters:
+      target_count: 6
+      preserve_critical: false
+      focus_areas: ["architecture", "performance", "integration"]
+      
+  business_focus:
+    name: "Бизнес фокус"
+    description: "Приоритет бизнес-процессов при консолидации"
+    file: "business_focus.txt"
+    parameters:
+      target_count: 8
+      preserve_critical: true
+      focus_areas: ["user_experience", "revenue", "operations"]
+
+  detailed_v2_with_systems:
+    name: "Системно-ориентированная консолидация v2"
+    description: "Консолидация с учетом архитектуры систем и их взаимодействий"
+    file: "detailed_v2_with_systems.txt"
+    parameters:
+      target_count: 12
+      preserve_critical: true
+      focus_areas: ["systems_integration", "external_dependencies", "internal_architecture"]
