@@ -13,7 +13,7 @@ from pipeline.task_classifier import classify_all_tasks, load_tasks_and_categori
 # ===== КОНФИГУРАЦИЯ СКРИПТА =====
 JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
 #JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 ORDER BY created DESC"
-CATEGORY_FINAL_COUNT = 15
+CATEGORY_FINAL_COUNT = None
 DATA_FOLDER = "classification_data"
 
 # Настройки загрузки из JIRA
@@ -36,6 +36,8 @@ CATEGORY_GENERATION_PROMPT = None  # Название промпта (None = а�
 
 # Настройки для консолидации категорий
 CATEGORY_CONSOLIDATION_PROMPT = None  # Название промпта (None = активный): "basic_v1", "detailed_v1", "technical_focus", "business_focus"
+USE_ITERATIVE_CONSOLIDATION = False  # Использовать поэтапную консолидацию
+CONSOLIDATION_REDUCTION_PERCENT = 30  # Процент уменьшения на каждой итерации (20-50)
 
 # Настройки для классификации задач
 CLASSIFICATION_THREADS = 10  # Количество потоков для классификации (рекомендуется 3-7)
@@ -49,7 +51,7 @@ CLASSIFICATION_RETRIES = 3  # Количество повторных попыт
 PIPELINE_STEPS = {
     'fetch_tasks': False,        # Получение задач из JIRA
     'summarize_tasks': False,    # Суммаризация задач (новый этап)
-    'generate_categories': True, # Генерация категорий
+    'generate_categories': False, # Генерация категорий
     'consolidate_categories': True, # Консолидация категорий
     'classify_tasks': False      # Классификация задач
 }
@@ -237,7 +239,9 @@ def main():
             target_count=CATEGORY_FINAL_COUNT,
             data_folder=DATA_FOLDER_PROJECT,
             save_timestamped=SAVE_TIMESTAMPED_FILES,
-            prompt_name=CATEGORY_CONSOLIDATION_PROMPT
+            prompt_name=CATEGORY_CONSOLIDATION_PROMPT,
+            use_iterative=USE_ITERATIVE_CONSOLIDATION,
+            reduction_percent=CONSOLIDATION_REDUCTION_PERCENT
         )
     else:
         print("\n⏭️ ЭТАП 4: Консолидация категорий - ПРОПУЩЕН")

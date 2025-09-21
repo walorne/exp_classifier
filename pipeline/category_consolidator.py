@@ -71,7 +71,80 @@ def parse_consolidated_categories(response_text):
     return categories
 
 
-def create_final_categories(categories_df, target_count, data_folder="classification_data", save_timestamped=True, prompt_name=None):
+def consolidate_categories_iteratively(categories_df, target_count, llm_client, prompt_name=None, reduction_percent=30, max_iterations=5):
+    """
+    Поэтапная консолидация категорий с постепенным уменьшением количества
+    
+    Args:
+        categories_df: DataFrame с исходными категориями
+        target_count: целевое количество категорий
+        llm_client: клиент для LLM
+        prompt_name: название промпта
+        reduction_percent: процент уменьшения на каждой итерации (по умолчанию 30%)
+        max_iterations: максимальное количество итераций
+    
+    Returns:
+        pd.DataFrame: консолидированные категории
+    """
+    current_categories = categories_df.copy()
+    iteration = 0
+    
+    print(f"🔄 Начинаем поэтапную консолидацию...")
+    print(f"   Исходное количество: {len(current_categories)}")
+    print(f"   Целевое количество: {target_count}")
+    print(f"   Процент уменьшения: {reduction_percent}%")
+    print(f"   Максимум итераций: {max_iterations}")
+    
+    while len(current_categories) > target_count and iteration < max_iterations:
+        iteration += 1
+        
+        # Вычисляем целевое количество для текущей итерации
+        if iteration == max_iterations:
+            # На последней итерации стремимся к финальному количеству
+            current_target = target_count
+        else:
+            # Вычисляем количество для уменьшения на заданный процент
+            reduction = max(1, int(len(current_categories) * reduction_percent / 100))
+            current_target = len(current_categories) - reduction
+            # НИКОГДА не увеличиваем количество категорий!
+            current_target = min(current_target, len(current_categories))
+            # И не опускаемся ниже целевого количества
+            current_target = max(target_count, current_target)
+        
+        print(f"\n📊 Итерация {iteration}: {len(current_categories)} → {current_target} категорий")
+        
+        try:
+            # Выполняем консолидацию
+            consolidated_response = consolidate_categories(current_categories, current_target, llm_client, prompt_name)
+            consolidated_categories = parse_consolidated_categories(consolidated_response)
+            
+            if len(consolidated_categories) > 0:
+                current_categories = pd.DataFrame(consolidated_categories)
+                print(f"✅ Итерация {iteration} завершена: получено {len(current_categories)} категорий")
+                
+                # Показываем прогресс
+                progress = ((len(categories_df) - len(current_categories)) / (len(categories_df) - target_count)) * 100
+                print(f"   📈 Прогресс: {progress:.1f}%")
+                
+            else:
+                print(f"❌ Итерация {iteration}: LLM не вернул категории")
+                break
+                
+        except Exception as e:
+            print(f"❌ Ошибка на итерации {iteration}: {e}")
+            break
+    
+    if len(current_categories) <= target_count:
+        print(f"\n🎉 Поэтапная консолидация завершена успешно!")
+        print(f"   Финальное количество: {len(current_categories)} категорий")
+    else:
+        print(f"\n⚠️ Поэтапная консолидация завершена с ограничениями")
+        print(f"   Финальное количество: {len(current_categories)} категорий (целевое: {target_count})")
+    
+    return current_categories
+
+
+def create_final_categories(categories_df, target_count, data_folder="classification_data", save_timestamped=True, prompt_name=None, use_iterative=True, reduction_percent=30):
     """
     Создает финальный список категорий
     
@@ -81,6 +154,8 @@ def create_final_categories(categories_df, target_count, data_folder="classifica
         data_folder (str): папка для сохранения файлов
         save_timestamped (bool): сохранять ли файл с таймстампом
         prompt_name (str): название промпта для консолидации (если None, используется активный)
+        use_iterative (bool): использовать ли поэтапную консолидацию
+        reduction_percent (int): процент уменьшения на каждой итерации (если use_iterative=True)
     
     Returns:
         pd.DataFrame: DataFrame с финальными категориями
@@ -91,36 +166,30 @@ def create_final_categories(categories_df, target_count, data_folder="classifica
     # Создаем LLM клиент
     llm_client = create_default_client()
     
-    # Всегда выполняем консолидацию
-    print(f"📊 Консолидация: {len(categories_df)} → {target_count} категорий")
-    
+    # ВРЕМЕННО ОТКЛЮЧАЕМ ПОЭТАПНУЮ КОНСОЛИДАЦИЮ - ОНА СЛОМАНА!
+    print(f"📊 Используем одноэтапную консолидацию: {len(categories_df)} → {target_count} категорий")
     try:
         consolidated_response = consolidate_categories(categories_df, target_count, llm_client, prompt_name)
         consolidated_categories = parse_consolidated_categories(consolidated_response)
         
-        # Всегда используем результат консолидации
         if len(consolidated_categories) > 0:
-            # Создаем DataFrame с консолидированными категориями
             final_categories_df = pd.DataFrame(consolidated_categories)
-            
-            if len(consolidated_categories) == target_count:
-                print(f"✅ Консолидация завершена: {len(final_categories_df)} категорий (точно как запрошено)")
-            else:
-                print(f"✅ Консолидация завершена: {len(final_categories_df)} категорий (целевое было: {target_count})")
-                
-            print("\n📋 ИТОГОВЫЕ КАТЕГОРИИ:")
-            for idx, row in final_categories_df.iterrows():
-                print(f"{idx+1}. {row['Название']}")
-            
+            print(f"✅ Консолидация завершена: {len(final_categories_df)} категорий")
         else:
-            print(f"❌ LLM не вернул ни одной категории - это ошибка парсинга")
-            print("Создаем пустой DataFrame")
+            print(f"❌ LLM не вернул ни одной категории")
             final_categories_df = pd.DataFrame(columns=['Название', 'Описание'])
             
     except Exception as e:
         print(f"❌ Ошибка при консолидации: {e}")
-        print("Создаем пустой DataFrame - консолидация не удалась")
         final_categories_df = pd.DataFrame(columns=['Название', 'Описание'])
+    
+    # Показываем итоговые категории
+    if len(final_categories_df) > 0:
+        print("\n📋 ИТОГОВЫЕ КАТЕГОРИИ:")
+        for idx, row in final_categories_df.iterrows():
+            print(f"{idx+1}. {row['Название']}")
+    else:
+        print("\n❌ Итоговые категории не созданы")
     
     # Сохраняем консолидированные категории с безопасной обработкой
     print(f"\n💾 Сохраняю итоговые категории в файл...")
@@ -136,3 +205,74 @@ def create_final_categories(categories_df, target_count, data_folder="classifica
         return final_categories_df, None
     
     return final_categories_df, main_final_file
+
+
+def main():
+    """
+    Основная функция для тестирования консолидации категорий
+    Позволяет запускать скрипт напрямую для экспериментов
+    """
+    print("🧪 Тестирование консолидации категорий")
+    print("=" * 50)
+    
+    # Конфигурация для тестирования
+    DATA_FOLDER = "classification_data/MPSM"
+    TARGET_COUNT = 15
+    USE_ITERATIVE = True
+    REDUCTION_PERCENT = 30
+    PROMPT_NAME = None  # None = активный промпт
+    
+    # Пытаемся найти файл с категориями
+    categories_file = os.path.join(DATA_FOLDER, "categories.xlsx")
+    
+    if not os.path.exists(categories_file):
+        print(f"❌ Файл с категориями не найден: {categories_file}")
+        print("💡 Поместите файл categories.xlsx в папку classification_data и запустите скрипт снова")
+        return
+    
+    print(f"📂 Загружаем категории из файла: {categories_file}")
+    try:
+        categories_df = pd.read_excel(categories_file)
+        print(f"✅ Загружено {len(categories_df)} категорий")
+    except Exception as e:
+        print(f"❌ Ошибка загрузки файла: {e}")
+        return
+    
+    # Показываем исходные категории
+    print(f"\n📋 ИСХОДНЫЕ КАТЕГОРИИ ({len(categories_df)}):")
+    for idx, row in categories_df.iterrows():
+        print(f"{idx+1:2d}. {row['Название']}")
+    
+    # Настройки консолидации
+    print(f"\n⚙️ НАСТРОЙКИ КОНСОЛИДАЦИИ:")
+    print(f"   Целевое количество: {TARGET_COUNT}")
+    print(f"   Поэтапная консолидация: {'Да' if USE_ITERATIVE else 'Нет'}")
+    if USE_ITERATIVE:
+        print(f"   Процент уменьшения: {REDUCTION_PERCENT}%")
+    print(f"   Промпт: {PROMPT_NAME or 'Активный'}")
+    
+    # Выполняем консолидацию
+    try:
+        final_categories_df, final_file = create_final_categories(
+            categories_df=categories_df,
+            target_count=TARGET_COUNT,
+            data_folder=DATA_FOLDER,
+            save_timestamped=False,
+            prompt_name=PROMPT_NAME,
+            use_iterative=USE_ITERATIVE,
+            reduction_percent=REDUCTION_PERCENT
+        )
+        
+        print(f"\n🎉 КОНСОЛИДАЦИЯ ЗАВЕРШЕНА!")
+        print(f"   Исходное количество: {len(categories_df)}")
+        print(f"   Финальное количество: {len(final_categories_df)}")
+        print(f"   Файл сохранен: {final_file}")
+        
+    except Exception as e:
+        print(f"\n❌ ОШИБКА ПРИ КОНСОЛИДАЦИИ: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()

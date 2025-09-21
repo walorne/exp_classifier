@@ -42,6 +42,6 @@ prompts:
     description: "Консолидация с учетом архитектуры систем и их взаимодействий"
     file: "detailed_v2_with_systems.txt"
     parameters:
-      target_count: 12
+      target_count: 25
       preserve_critical: true
       focus_areas: ["systems_integration", "external_dependencies", "internal_architecture"]

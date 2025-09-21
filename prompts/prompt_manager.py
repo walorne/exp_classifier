@@ -143,13 +143,14 @@ class PromptManager:
             
         print(f"✅ Активный промпт для генерации категорий изменен на: {prompt_name}")
     
-    def format_category_generation_prompt(self, tasks_text: str, prompt_name: Optional[str] = None) -> str:
+    def format_category_generation_prompt(self, tasks_text: str, prompt_name: Optional[str] = None, existing_categories: Optional[list] = None) -> str:
         """
         Форматирует промпт для генерации категорий с подстановкой данных
         
         Args:
             tasks_text: Текст задач для анализа
             prompt_name: Название промпта (если None, используется активный)
+            existing_categories: Список уже существующих категорий для контекста
             
         Returns:
             Отформатированный промпт
@@ -157,9 +158,22 @@ class PromptManager:
         prompt_template = self.get_category_generation_prompt(prompt_name)
         parameters = self.get_category_generation_parameters(prompt_name)
         
+        # Формируем секцию с существующими категориями
+        existing_categories_section = ""
+        if existing_categories and len(existing_categories) > 0:
+            existing_categories_section = "\n"
+            for i, cat in enumerate(existing_categories, 1):
+                existing_categories_section += f"{i}. Категория: {cat.get('Название', '')}\nОписание: {cat.get('Описание', '')}\n"
+                if cat.get('Ключевые_слова'):
+                    existing_categories_section += f"   Ключевые слова: {cat['Ключевые_слова']}\n"
+                if cat.get('Типы_задач'):
+                    existing_categories_section += f"   Типы задач: {cat['Типы_задач']}\n"
+                existing_categories_section += "\n"
+        
         # Подставляем параметры в шаблон
         format_vars = {
             'tasks_text': tasks_text,
+            'existing_categories_section': existing_categories_section,
             'max_categories': parameters.get('max_categories', 10),
             **parameters
         }
