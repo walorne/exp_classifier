@@ -52,8 +52,8 @@ PIPELINE_STEPS = {
     'fetch_tasks': False,        # Получение задач из JIRA
     'summarize_tasks': False,    # Суммаризация задач (новый этап)
     'generate_categories': False, # Генерация категорий
-    'consolidate_categories': True, # Консолидация категорий
-    'classify_tasks': False      # Классификация задач
+    'consolidate_categories': False, # Консолидация категорий
+    'classify_tasks': True      # Классификация задач
 }
 
 
@@ -247,7 +247,7 @@ def main():
         print("\n⏭️ ЭТАП 4: Консолидация категорий - ПРОПУЩЕН")
     
     # Этап 5: Классификация задач по финальным категориям
-    if PIPELINE_STEPS['classify_tasks'] and final_categories_df is not None:
+    if PIPELINE_STEPS['classify_tasks']:
         print("\n🏷️ ЭТАП 5: Присвоение категорий задачам")
         classified_df, classified_file = classify_all_tasks(
             tasks_df=working_df,

@@ -261,7 +261,7 @@ def classify_all_tasks(tasks_df, categories_df, batch_size=20, data_folder="clas
     
     Args:
         tasks_df (pd.DataFrame): DataFrame с задачами
-        categories_df (pd.DataFrame): DataFrame с финальными категориями
+        categories_df (pd.DataFrame): DataFrame с финальными категориями (может быть None)
         batch_size (int): размер батча для LLM (используется только в batch режиме)
         data_folder (str): папка для сохранения файлов
         save_timestamped (bool): сохранять ли файлы с временными метками
@@ -273,6 +273,58 @@ def classify_all_tasks(tasks_df, categories_df, batch_size=20, data_folder="clas
         pd.DataFrame: DataFrame с классифицированными задачами
         str: путь к файлу с результатами
     """
+    # Если categories_df не передан, пытаемся загрузить из файла
+    if categories_df is None:
+        final_categories_file = os.path.join(data_folder, "final_categories.xlsx")
+        if os.path.exists(final_categories_file):
+            try:
+                categories_df = pd.read_excel(final_categories_file)
+                print(f"📋 Загружены финальные категории из файла: {len(categories_df)} категорий")
+                
+                # Детальная информация о загруженных категориях
+                print(f"📊 Структура данных:")
+                print(f"   - Колонки: {list(categories_df.columns)}")
+                print(f"   - Размер: {categories_df.shape}")
+                
+                # Показываем первые несколько категорий
+                print(f"📝 Первые 5 категорий:")
+                for i, (_, row) in enumerate(categories_df.head().iterrows()):
+                    print(f"   {i+1}. {row.get('Название', 'N/A')}")
+                    if 'Описание' in row and pd.notna(row['Описание']):
+                        desc = str(row['Описание'])[:100] + "..." if len(str(row['Описание'])) > 100 else str(row['Описание'])
+                        print(f"      Описание: {desc}")
+                
+                # Проверяем наличие обязательных полей
+                required_fields = ['Название', 'Описание']
+                missing_fields = [field for field in required_fields if field not in categories_df.columns]
+                if missing_fields:
+                    print(f"⚠️ Отсутствуют обязательные поля: {missing_fields}")
+                else:
+                    print(f"✅ Все обязательные поля присутствуют")
+                
+                # Показываем все доступные поля
+                print(f"📋 Доступные поля в файле:")
+                for col in categories_df.columns:
+                    non_null_count = categories_df[col].notna().sum()
+                    print(f"   - {col}: {non_null_count}/{len(categories_df)} заполнено")
+                
+                # Проверяем на пустые значения в ключевых полях
+                if 'Название' in categories_df.columns:
+                    empty_names = categories_df['Название'].isna().sum()
+                    if empty_names > 0:
+                        print(f"⚠️ Найдено {empty_names} категорий без названия")
+                
+                if 'Описание' in categories_df.columns:
+                    empty_descriptions = categories_df['Описание'].isna().sum()
+                    if empty_descriptions > 0:
+                        print(f"⚠️ Найдено {empty_descriptions} категорий без описания")
+                    
+            except Exception as e:
+                print(f"❌ Ошибка загрузки финальных категорий: {e}")
+                return None, None
+        else:
+            print("❌ Файл с финальными категориями не найден и categories_df не передан")
+            return None, None
     # Выбираем режим классификации
     if classification_mode == "single":
         print(f"\n🎯 Классификация {len(tasks_df)} задач по одной (потоков: {max_workers})")
