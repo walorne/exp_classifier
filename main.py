@@ -11,8 +11,11 @@ from pipeline.category_consolidator import create_final_categories
 from pipeline.task_classifier import classify_all_tasks, load_tasks_and_categories
 
 # ===== КОНФИГУРАЦИЯ СКРИПТА =====
-JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
-#JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 ORDER BY created DESC"
+#JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
+JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 AND created <= 2025-08-31 ORDER BY created DESC"
+# JQL = "project = AMT AND \"Epic Link\" in (AMT-19173, AMT-19175) AND issuetype in (Incident, Консультация, \"Исправление дефекта\", Инцидент, \"Incident OT\", Сопровождение, \"Мониторинг и безопасность\", Администрирование, \"Service request OT\") AND created >= 2024-09-01 AND created <= 2025-08-31 ORDER BY component DESC"
+# JQL = "project = PRK AND issuetype in (Incident, Консультация, \"Исправление дефекта\", Инцидент, \"Incident OT\", Сопровождение, \"Мониторинг и безопасность\", Администрирование, \"Service request OT\") AND (created >= 2025-04-01 and created < 2025-09-01)"
+
 CATEGORY_FINAL_COUNT = None
 DATA_FOLDER = "classification_data"
 
@@ -49,10 +52,10 @@ CLASSIFICATION_RETRIES = 3  # Количество повторных попыт
 # ===== КОНФИГУРАЦИЯ ЭТАПОВ PIPELINE =====
 # Настройте какие этапы выполнять (True/False)
 PIPELINE_STEPS = {
-    'fetch_tasks': False,        # Получение задач из JIRA
-    'summarize_tasks': False,    # Суммаризация задач (новый этап)
-    'generate_categories': False, # Генерация категорий
-    'consolidate_categories': False, # Консолидация категорий
+    'fetch_tasks': True,        # Получение задач из JIRA
+    'summarize_tasks': True,    # Суммаризация задач (новый этап)
+    'generate_categories': True, # Генерация категорий
+    'consolidate_categories': True, # Консолидация категорий
     'classify_tasks': True      # Классификация задач
 }
 

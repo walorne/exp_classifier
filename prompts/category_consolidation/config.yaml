@@ -1,5 +1,5 @@
 # Конфигурация промптов для консолидации категорий
-active_prompt: "detailed_v2_with_systems"
+active_prompt: "detailed_v1"
 
 prompts:
   basic_v1:
@@ -15,7 +15,7 @@ prompts:
     description: "Более тщательный анализ с учетом бизнес-критичности"
     file: "detailed_v1.txt"
     parameters:
-      target_count: 10
+      target_count: 20
       preserve_critical: true
       focus_on_business: true
       

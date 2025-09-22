@@ -175,6 +175,12 @@ def process_batch_for_categories(batch_tasks, batch_num, total_batches, llm_clie
     #     f.write("\n")
 
     response = llm_client.simple_chat(prompt)
+
+    with open("category_generation_response_log.txt", "a", encoding="utf-8") as f:
+        f.write(f"\n--- БАТЧ {batch_num}/{total_batches} ---\n")
+        f.write(response)
+        f.write("\n")
+
     return response
 
 
@@ -308,7 +314,7 @@ def generate_categories_from_tasks(tasks_df, batch_size=50, data_folder="classif
         with tqdm(total=total_batches, 
                   desc="🤖 Обработка батчей", 
                   unit="батч",
-                  ncols=120,
+                  ncols=80,
                   leave=True,
                   dynamic_ncols=False,
                   miniters=1,  # Обновляем каждую итерацию
@@ -394,7 +400,7 @@ def main():
     print("=" * 60)
     
     # Конфигурация для тестирования
-    DATA_FOLDER = "classification_data/MPSM"
+    DATA_FOLDER = "classification_data/AMT"
     BATCH_SIZE = 5
     MAX_WORKERS = 10  # Возвращаем нормальное количество потоков
     MAX_RETRIES = 3

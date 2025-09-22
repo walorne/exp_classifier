@@ -19,13 +19,17 @@ try:
     print(f"✅ Подключение успешно! Пользователь: {user}")
     
     # Тестовый поиск с минимальным количеством результатов
-    test_jql = "project = MPSM ORDER BY created DESC"
+    test_jql = "project = OSTINAPP AND issuekey = OSTINAPP-14432"
     issues = jira.search_issues(test_jql, maxResults=1)
+    issues = jira.search_issues(
+                    test_jql, 
+                    fields='key,summary,description,issuetype,timespent,comment'  # 🔥 ТОЛЬКО НУЖНЫЕ ПОЛЯ + КОММЕНТАРИИ
+                )
     print(f"✅ Тестовый поиск успешен! Найдено задач: {len(issues)}")
     
     if issues:
         issue = issues[0]
-        print(f"   Пример задачи: {issue.key} - {issue.fields.summary}")
+        print(f"   Пример задачи: {issue.key} - {issue.fields.summary}- {issue.fields.timespent/3600}")
         
 except Exception as e:
     print(f"❌ Ошибка подключения: {e}")

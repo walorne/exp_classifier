@@ -1,5 +1,5 @@
 # Конфигурация промптов для генерации категорий
-active_prompt: "detailed_v4"
+active_prompt: "detailed_v3"
 
 prompts:
   basic_v1:
@@ -42,16 +42,16 @@ prompts:
       max_categories: 8
       focus_areas: ["ux", "business_logic", "analytics"]
 
-  detailed_v3_with_systems:
-    name: "Анализ с системным справочником v3"
+  detailed_v3:
+    name: "Четкие категории v3 без систем"
     description: "Детальный анализ болевых точек с использованием справочника взаимодействующих систем"
-    file: "detailed_v3_with_systems.txt"
+    file: "detailed_v3.txt"
     parameters:
       max_categories: 5
       focus_areas: ["systems_integration", "external_dependencies", "internal_architecture"]
 
   detailed_v4:
-    name: "Четкие категории v4"
+    name: "Четкие категории v4 для МПСМ"
     description: "Создание понятных и четких категорий проблем без технических деталей"
     file: "detailed_v4.txt"
     parameters:
