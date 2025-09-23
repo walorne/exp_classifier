@@ -12,7 +12,8 @@ from pipeline.task_classifier import classify_all_tasks, load_tasks_and_categori
 
 # ===== КОНФИГУРАЦИЯ СКРИПТА =====
 #JQL = "project = MPSM AND issueFunction in issuesInEpics(\"ERP_JOBs ~ '00-00377754#000000002'\") AND created >= 2024-09-01 ORDER BY created DESC"
-JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 AND created <= 2025-08-31 ORDER BY created DESC"
+# JQL = "(project =  \"МП Funday\" OR project =  \"МП Остин\" )  AND issueFunction in issuesInEpics(\"ERP_JOBs ~'00-00377754#000000001'\") AND created >= 2024-09-01 AND created <= 2025-08-31 ORDER BY created DESC"
+JQL = "project = KISRMAC AND \"Epic Link\" = KISRMAC-2168 AND (created >= 2024-09-01 AND created <= 2025-09-01 OR resolved >= 2024-09-01 AND resolved <= 2025-09-01)"
 # JQL = "project = AMT AND \"Epic Link\" in (AMT-19173, AMT-19175) AND issuetype in (Incident, Консультация, \"Исправление дефекта\", Инцидент, \"Incident OT\", Сопровождение, \"Мониторинг и безопасность\", Администрирование, \"Service request OT\") AND created >= 2024-09-01 AND created <= 2025-08-31 ORDER BY component DESC"
 # JQL = "project = PRK AND issuetype in (Incident, Консультация, \"Исправление дефекта\", Инцидент, \"Incident OT\", Сопровождение, \"Мониторинг и безопасность\", Администрирование, \"Service request OT\") AND (created >= 2025-04-01 and created < 2025-09-01)"
 

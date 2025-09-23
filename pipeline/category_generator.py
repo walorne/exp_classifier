@@ -176,10 +176,10 @@ def process_batch_for_categories(batch_tasks, batch_num, total_batches, llm_clie
 
     response = llm_client.simple_chat(prompt)
 
-    with open("category_generation_response_log.txt", "a", encoding="utf-8") as f:
-        f.write(f"\n--- БАТЧ {batch_num}/{total_batches} ---\n")
-        f.write(response)
-        f.write("\n")
+    # with open("category_generation_response_log.txt", "a", encoding="utf-8") as f:
+    #     f.write(f"\n--- БАТЧ {batch_num}/{total_batches} ---\n")
+    #     f.write(response)
+    #     f.write("\n")
 
     return response
 
