@@ -1,0 +1,17 @@
+СПРАВОЧНИК СИСТЕМ "МП Спортмастер":
+
+ВНУТРЕННИЕ: CmsGate, ContentGate, GeoGate, OrderGate, PersGate, PGate, ProductGate, UserGate, Оркестратор диалогов
+
+ВНЕШНИЕ ПЛАТЕЖНЫЕ [Ext]: SberPay, Yandex Pay, Сбербанк интернет-эквайринг, СБП, Тинькофф
+
+ВНЕШНИЕ АНАЛИТИЧЕСКИЕ [Ext]: AppMetrica, AppsFlyer, Insider, InAppStory, UX Feedback
+
+ВНЕШНИЕ УВЕДОМЛЕНИЯ [Ext]: APNS, Firebase Cloud Messaging
+
+ВНЕШНИЕ СОЦИАЛЬНЫЕ [Ext]: VK ID, Одноклассники, Firebase
+
+ВНЕШНИЕ ИНФРАСТРУКТУРНЫЕ [Ext]: FortiGate, Qrator, Sentry, Яндекс Геокодер
+
+ВНЕШНИЕ БИЗНЕС [Ext]: Aplaut, Streamerce, ПЛАЙТ
+
+ИСПОЛЬЗОВАНИЕ: При анализе задач ищи упоминания этих систем для точной категоризации источников проблем.
